@@ -36,14 +36,20 @@ data Contract = PreCD Formula
               deriving (Show, Eq, Ord, Generic)
 
 type VarName = Text
-type ConstValue = Text
+
+data ConstValue = ConstString Text
+                | ConstInt Int
+                | ConstNumber Scientific
+                | ConstBool Bool
+                deriving (Show, Eq, Ord, Generic)
+
 type FunName = Text
 
 data FunctionDefinition = FunDef FunName [TypedVar] [TypedVar] [Contract] GeneralExpression
                         deriving (Show, Eq, Ord, Generic)
 
 
-data CaseAltPattern = CConstant Text ClirType
+data CaseAltPattern = CConstant ConstValue ClirType
                     | CConstructor DataConstructor [AtomicExpression]
                     | CDefault
                  deriving (Show, Eq, Ord, Generic)
@@ -121,14 +127,31 @@ typeSig = iso fromSexp toSexp
         toSexp (CompoundType l) = (List Sexp.dummyPos (map toSexp l))
 
 
-clir_constant :: Grammar SexpGrammar (Sexp :- t) (ClirType :- (Text :- t))
+clirbool :: Grammar SexpGrammar (Sexp :- b) (Bool :- b)
+clirbool = coproduct [ bool, sym "true" >>> push True, sym "false" >>> push False ]
+
+
+-- | Constant nodes are used in different nodes of the grammar (case
+-- alternatives and constants).
+constantNode :: Grammar SexpGrammar (Sexp :- t) (ConstValue :- t)
+constantNode = match
+               $ With (\str -> str . string)
+               $ With (\int_ -> int_ . int)
+               $ With (\real_ -> real_ . real)
+               $ With (\bool_ -> bool_ . clirbool)
+               $ End
+
+
+clir_constant :: Grammar SexpGrammar (Sexp :- t) (ClirType :- (ConstValue :- t))
 clir_constant = (list (
-                   el (sym "the") >>>
-                   el sexpIso >>>
-                   el anyatom >>>
-                   swap))
+                   el (sym "the")  >>>
+                   el sexpIso      >>>
+                   el constantNode >>> swap))
 
 
+-- | Constructor applications are used in the grammar both for
+-- destructuring in case alternatives and literal constructor
+-- applications
 clir_constructorApp :: Grammar SexpGrammar (Sexp :- b) ([AtomicExpression] :- (Text :- b))
 clir_constructorApp = (list (el (sym "@@") >>>
                              el symbol >>>
