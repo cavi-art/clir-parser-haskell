@@ -77,54 +77,24 @@ data GeneralExpression = Binding BindingExpression
                        deriving (Show, Eq, Ord, Generic)
 
 
-
-
-varGrammar = symbol
-
-constNumberGrammar = t
-  where t = list (el (sym "the") >>>
-                  el (sym "int") >>>
-                  el real)
-
-constStringGrammar = list (el (sym "the") >>>
-                           el (sym "string") >>>
-                           el string)
-
-constTrueGrammar = list (el (sym "the") >>>
-                         el (sym "bool") >>>
-                         el (sym "true"))
-
-constFalseGrammar = list (el (sym "the") >>>
-                          el (sym "bool") >>>
-                          el (sym "false"))
-
-t1 = decodeWith constStringGrammar "(the string \"hello, world\")" :: Either String Text
-
-
-showToSymbol :: (Read a, Show a) => Grammar SexpGrammar (a :- t) (Text :- t)
-showToSymbol = iso fromSci toSci
-  where fromSci s = pack $ show s
-        toSci t = read $ unpack t
-
-anyatom :: Grammar SexpGrammar (Sexp :- t) (Text :- t)
-anyatom = coproduct
-  [
-    string -- TODO: Distinguish string and symbol
-  , symbol
-  , showToSymbol . real
-  , showToSymbol . int
-  ]
-
-
+typeSig :: Grammar g (Sexp :- t) (ClirType :- t)
 typeSig = iso fromSexp toSexp
   where fromSexp (Atom _ (AtomSymbol a)) = SimpleType a
+        fromSexp (Atom _ _) = error "Unexpected atom type different from symbol"
         fromSexp (List _ []) = UnitType
-        fromSexp (List _ [Quoted _ (Atom _ (AtomSymbol a))]) = TypeVar a
+        -- fromSexp (List _ [Quoted _ (Atom _ (AtomSymbol a))]) = TypeVar a
         fromSexp (List _ l) = CompoundType (map fromSexp l)
+        fromSexp (Vector _ _) = error "Unexpected vector in type"
+        fromSexp (Quoted _ (Atom _ (AtomSymbol a))) = TypeVar a
+        fromSexp (Quoted _ a) = error $ "Unexpected quoted value" ++ show a
         toSexp (SimpleType a) = (Atom Sexp.dummyPos (AtomSymbol a))
         toSexp (UnitType) = (List Sexp.dummyPos [])
-        toSexp (TypeVar a) = (List Sexp.dummyPos [(Quoted Sexp.dummyPos (Atom Sexp.dummyPos (AtomSymbol a)))])
+        -- toSexp (TypeVar a) = (List Sexp.dummyPos [(Quoted Sexp.dummyPos (Atom Sexp.dummyPos (AtomSymbol a)))])
+        toSexp (TypeVar a) = Quoted Sexp.dummyPos (Atom Sexp.dummyPos (AtomSymbol a))
         toSexp (CompoundType l) = (List Sexp.dummyPos (map toSexp l))
+
+instance SexpIso ClirType where
+  sexpIso = typeSig
 
 
 clirbool :: Grammar SexpGrammar (Sexp :- b) (Bool :- b)
@@ -156,9 +126,6 @@ clir_constructorApp :: Grammar SexpGrammar (Sexp :- b) ([AtomicExpression] :- (T
 clir_constructorApp = (list (el (sym "@@") >>>
                              el symbol >>>
                              rest sexpIso))
-  
-instance SexpIso ClirType where
-  sexpIso = typeSig
 
 
 instance SexpIso AtomicExpression where
@@ -267,7 +234,16 @@ instance SexpIso GeneralExpression where
     $ End
 
 
-t = encode $ Const "5" (SimpleType "int")
+t = encode $ Const (ConstString "5") (SimpleType "int")
 
-t3 = decode "(the f x)" :: Either String BindingExpression
-t2 = decode "(let ((x int)) (@ f (the int false)) x)" :: Either String GeneralExpression
+t2 :: Either String GeneralExpression
+t2 = decode "(let ((x int)) (@ f (the bool false)) x)"
+
+t3  :: Either String BindingExpression
+t3 = decode "(the (array 'a) \"x\")"
+
+r :: Either a b -> b
+r (Right x) = x
+
+t4 :: Either String GeneralExpression
+t4 = decode "(case x ((the int 1) (the int 1)) (default x))"
