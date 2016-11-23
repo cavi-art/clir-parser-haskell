@@ -121,27 +121,29 @@ typeSig = iso fromSexp toSexp
         toSexp (UnitType) = (List Sexp.dummyPos [])
         toSexp (TypeVar a) = (List Sexp.dummyPos [(Quoted Sexp.dummyPos (Atom Sexp.dummyPos (AtomSymbol a)))])
         toSexp (CompoundType l) = (List Sexp.dummyPos (map toSexp l))
-instance SexpIso ClirType where
-  sexpIso = iso fromSexp toSexp
-    where fromSexp (Atom _ (AtomSymbol a)) = SimpleType a
-          fromSexp (List _ []) = UnitType
-          fromSexp (List _ [Quoted _ (Atom _ (AtomSymbol a))]) = TypeVar a
-          fromSexp (List _ l) = CompoundType (map fromSexp l)
-          toSexp (SimpleType a) = (Atom Sexp.dummyPos (AtomSymbol a))
-          toSexp (UnitType) = (List Sexp.dummyPos [])
-          toSexp (TypeVar a) = (List Sexp.dummyPos [(Quoted Sexp.dummyPos (Atom Sexp.dummyPos (AtomSymbol a)))])
-          toSexp (CompoundType l) = (List Sexp.dummyPos (map toSexp l))
 
+
+clir_constant :: Grammar SexpGrammar (Sexp :- t) (ClirType :- (Text :- t))
+clir_constant = (list (
+                   el (sym "the") >>>
+                   el sexpIso >>>
+                   el anyatom >>>
+                   swap))
+
+
+clir_constructorApp :: Grammar SexpGrammar (Sexp :- b) ([AtomicExpression] :- (Text :- b))
+clir_constructorApp = (list (el (sym "@@") >>>
+                             el symbol >>>
+                             rest sexpIso))
+  
+instance SexpIso ClirType where
+  sexpIso = typeSig
 
 
 instance SexpIso AtomicExpression where
   sexpIso = match
     $ With (\var -> var . symbol)
-    $ With (\const -> const . (list (
-                                  el (sym "the") >>>
-                                  el sexpIso >>>
-                                  el anyatom >>>
-                                  swap)))
+    $ With (\const -> const . clir_constant)
     $ End
 
 
@@ -158,14 +160,93 @@ instance SexpIso BindingExpression where
     $ With (\funa -> funa . (list (el (sym "@") >>>
                                    el symbol >>>
                                    rest sexpIso)))
-    $ With (\constra -> constra . (list (el (sym "@@") >>>
-                                         el symbol >>>
-                                         rest sexpIso)))
+    $ With (\constra -> constra . clir_constructorApp)
     $ With (\tuple -> tuple . (list (el (sym "tuple") >>>
                                      rest sexpIso)))
     $ End
 
 
+typedVar :: Grammar SexpGrammar (Sexp :- t) (TypedVar :- t)
+typedVar = match
+  $ With (\typedvar -> typedvar . list (el symbol >>> el typeSig))
+  $ End
+
+instance SexpIso TypedVar where
+  sexpIso = typedVar
+
+
+typedVarList :: Grammar SexpGrammar (Sexp :- t) ([TypedVar] :- t)
+typedVarList = sexpIso
+
+
+-- |TODO: Handle pre/post conditions
+--
+-- Idea: map sexp to a haskell Map and then get each element out of
+-- the contract, because they can be anywhere in any order; e.g.,
+-- (declare (x) (y) (assertions (precd ...)) (z))
+contracts :: Grammar SexpGrammar (Sexp :- t) ([Contract] :- t)
+contracts = undefined
+
+
+funDecl :: Grammar SexpGrammar (Sexp :- t) (FunctionDefinition :- t)
+funDecl = match
+  $ With (\fdef -> fdef . coproduct [ list (el symbol       >>>
+                                            el typedVarList >>>
+                                            el typedVarList >>>
+                                            el contracts    >>>
+                                            el sexpIso)
+                                    , list (el symbol       >>>
+                                            el typedVarList >>>
+                                            el typedVarList >>>
+                                            push []         >>>
+                                            el sexpIso)
+                                    ])
+  $ End
+
+
+instance SexpIso FunctionDefinition where
+  sexpIso = funDecl
+
+
+funDeclList :: Grammar SexpGrammar (Sexp :- t) ([FunctionDefinition] :- t)
+funDeclList = sexpIso
+
+
+caseAltPattern :: Grammar SexpGrammar (Sexp :- t) (CaseAltPattern :- t)
+caseAltPattern = match
+  $ With (\cconstant -> cconstant . clir_constant)
+  $ With (\cconstructor -> cconstructor . clir_constructorApp)
+  $ With (\cdefault -> cdefault . sym "default")
+  $ End
+
+
+caseAltExpr :: Grammar SexpGrammar (Sexp :- t) (CaseAltExpr :- t)
+caseAltExpr = match
+  $ With (\casealt -> casealt . list (el caseAltPattern >>> el sexpIso))
+  $ End
+
+instance SexpIso GeneralExpression where
+  sexpIso = match
+    $ With (\be -> be . sexpIso)
+    $ With (\let_ -> let_ . (list (el (sym "let")
+                                   >>>
+                                   el typedVarList
+                                   >>>
+                                   el sexpIso -- BindingExpression
+                                   >>>
+                                   el sexpIso -- GeneralExpression
+                                  )))
+    $ With (\letfun -> letfun . (list (el (sym "letfun")
+                                       >>>
+                                       el funDeclList
+                                       >>>
+                                       el sexpIso
+                                      )))
+    $ With (\case_ -> case_ . (list (el (sym "case") >>> el sexpIso >>> rest caseAltExpr)))
+    $ End
+
+
 t = encode $ Const "5" (SimpleType "int")
 
-t2 = decode "(@ f (the int false))" :: Either String AtomicExpression
+t3 = decode "(the f x)" :: Either String BindingExpression
+t2 = decode "(let ((x int)) (@ f (the int false)) x)" :: Either String GeneralExpression
