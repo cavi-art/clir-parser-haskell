@@ -29,7 +29,7 @@ type Formula = String
 type DataConstructor = Text
 
 -- Typed variable definitions
-data TypedVar = TypedVar String ClirType
+data TypedVar = TypedVar Text ClirType
               deriving (Show, Eq, Ord, Generic)
 
 data Contract = PreCD Formula
