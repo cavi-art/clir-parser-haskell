@@ -1,8 +1,8 @@
 name:                sexp-grammar
-version:             1.2.2
+version:             1.2.2.1
 license:             BSD3
 license-file:        LICENSE
-author:              Eugene Smolanka, Sergey Vinokurov
+author:              Eugene Smolanka, Sergey Vinokurov, Santiago Saavedra
 maintainer:          Eugene Smolanka <esmolanka@gmail.com>, Sergey Vinokurov <serg.foo@gmail.com>
 homepage:            https://github.com/esmolanka/sexp-grammar
 category:            Language
