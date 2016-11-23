@@ -112,6 +112,15 @@ anyatom = coproduct
   ]
 
 
+typeSig = iso fromSexp toSexp
+  where fromSexp (Atom _ (AtomSymbol a)) = SimpleType a
+        fromSexp (List _ []) = UnitType
+        fromSexp (List _ [Quoted _ (Atom _ (AtomSymbol a))]) = TypeVar a
+        fromSexp (List _ l) = CompoundType (map fromSexp l)
+        toSexp (SimpleType a) = (Atom Sexp.dummyPos (AtomSymbol a))
+        toSexp (UnitType) = (List Sexp.dummyPos [])
+        toSexp (TypeVar a) = (List Sexp.dummyPos [(Quoted Sexp.dummyPos (Atom Sexp.dummyPos (AtomSymbol a)))])
+        toSexp (CompoundType l) = (List Sexp.dummyPos (map toSexp l))
 instance SexpIso ClirType where
   sexpIso = iso fromSexp toSexp
     where fromSexp (Atom _ (AtomSymbol a)) = SimpleType a
