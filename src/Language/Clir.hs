@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric #-}
