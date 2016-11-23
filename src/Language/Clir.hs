@@ -6,11 +6,9 @@
 module Language.Clir where
 
 import Prelude hiding ((.), id)
-import Control.Arrow ((>>>))
 import Control.Category
-import Data.Data (Data)
 import Data.Scientific as Scientific
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text)
 import qualified Language.Sexp as Sexp
 import Language.SexpGrammar
 import Language.SexpGrammar.Generic
