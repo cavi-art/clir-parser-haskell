@@ -45,11 +45,13 @@ data FunctionDefinition = FunDef FunName [TypedVar] [TypedVar] [Contract] Genera
                         deriving (Show, Eq, Ord, Generic)
 
 
-data CaseAltExpr = CConstant String ClirType
-                 | CConstructor DataConstructor [AtomicExpression]
-                 | CDefault
+data CaseAltPattern = CConstant Text ClirType
+                    | CConstructor DataConstructor [AtomicExpression]
+                    | CDefault
                  deriving (Show, Eq, Ord, Generic)
 
+data CaseAltExpr = CaseAlt CaseAltPattern GeneralExpression
+                 deriving (Show, Eq, Ord, Generic)
 
 -- Atomic Expressions
 data AtomicExpression = Var VarName
