@@ -232,18 +232,3 @@ instance SexpIso GeneralExpression where
                                       )))
     $ With (\case_ -> case_ . (list (el (sym "case") >>> el sexpIso >>> rest caseAltExpr)))
     $ End
-
-
-t = encode $ Const (ConstString "5") (SimpleType "int")
-
-t2 :: Either String GeneralExpression
-t2 = decode "(let ((x int)) (@ f (the bool false)) x)"
-
-t3  :: Either String BindingExpression
-t3 = decode "(the (array 'a) \"x\")"
-
-r :: Either a b -> b
-r (Right x) = x
-
-t4 :: Either String GeneralExpression
-t4 = decode "(case x ((the int 1) (the int 1)) (default x))"
